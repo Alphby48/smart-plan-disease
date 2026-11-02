@@ -20,6 +20,8 @@ export default function RootLayout() {
         <Stack.Screen name="chili_disease" />
         <Stack.Screen name="detects/tomato_detect" />
         <Stack.Screen name="detects/chili_detect" />
+        <Stack.Screen name="detects/rice_detect" />
+        <Stack.Screen name="detects/corn_detect" />
       </Stack>
     </ThemeProvider>
   );
