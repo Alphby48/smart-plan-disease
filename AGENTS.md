@@ -1,41 +1,86 @@
-This is an Expo/React Native mobile application. Prioritize mobile-first patterns, performance, and cross-platform compatibility.
+# SYSTEM PROMPT & PROJECT CONTEXT FOR AI AGENT
 
-## Expo has changed — do not trust your training data
+## 1. Project Overview & Tech Stack
+- **Framework**: React Native with Expo.
+- **Styling**: NativeWind (Tailwind CSS for React Native).
+- **Machine Learning**: `react-native-fast-tflite` running MobileNetV2 `.tflite` models.
+- **Goal**: Smart Plant Disease Detection App.
 
-Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or removed. Before writing any code that touches an Expo, EAS, or React Native API:
+## 2. Strict Rules & Guardrails (DO NOT VIOLATE)
+- **`metro.config.js`**: DO NOT modify or reset this file. It has been strictly configured to resolve `.tflite` asset loading without breaking NativeWind.
+- **App Build Process**: Due to local hardware limitations, APK builds MUST always be directed using Expo EAS Cloud Build with the command: `eas build --profile development --platform android`. Do not suggest local Android Studio builds.
+- **Tensor Processing & Normalization**: You must strictly follow the existing logic for converting images to Float32 arrays. Do not invent new tensor manipulation methods. Inputs are `[1, 224, 224, 3]`.
 
-1. Read the major version of the `expo` package in `package.json`.
-2. Fetch the matching versioned docs: `https://docs.expo.dev/versions/v<major>.0.0/`
-3. For anything else, fetch https://docs.expo.dev/llms.txt — an index of all Expo docs with corrections to common LLM misconceptions. Follow its links to the specific page you need; never answer from memory.
+## 3. Current Task: "Pindai Cepat" (Quick Scan) Feature
+We are currently building a new "Pindai Cepat" feature to automate plant selection. 
 
-## Commands
+### A. UI/UX Flow
+1. **Bottom Navigation**: Add a prominent camera logo in the center of the bottom navigation bar representing "Pindai Cepat".
+2. **Scan Page**: When clicked, route the user to a dedicated Quick Scan screen with options for Camera (`takePhoto`) and Gallery (`pickImage`).
 
-Use `bunx` instead of `npx` if the project uses bun (`bun.lock` present).
+### B. Two-Stage Machine Learning Pipeline
+Inference must happen in two stages:
+1. **Stage 1: Leaf Classification**
+   - Run the image through the newly trained Leaf Classification MobileNetV2 model.
+   - The output classes for Stage 1 are exactly: `['Cabai', 'Jagung', 'Padi', 'Tomat']`.
+2. **Stage 2: Disease Routing & Classification**
+   - Based on the prediction from Stage 1, automatically route the same image to the specific disease model for that plant.
+   - Example: If Stage 1 detects "Jagung", pass the same image buffer to the Corn Disease `.tflite` model to classify its specific disease.
 
-```bash
-npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
-npx expo start              # start the dev server
-npx expo lint               # lint
-npx tsc --noEmit            # typecheck
-npx expo-doctor             # diagnose dependency and config issues
-npx expo install --fix      # fix incompatible package versions
-```
+## 4. Reference Code: Image Processing Pipeline
+When building the "Pindai Cepat" inference logic, strictly reference and adapt the following working pattern for image resizing, base64 to buffer conversion, and Float32 array creation:
 
-Run lint and typecheck before declaring any task done.
+```javascript
+  const processAndPredict = async (uri: string) => {
+    try {
+      setImageUri(uri);
 
-## Navigation & Routing
+      const resized = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 224, height: 224 } }],
+        { format: ImageManipulator.SaveFormat.JPEG },
+      );
 
-- Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
-- Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
-- Docs: https://docs.expo.dev/router/introduction.md
+      const base64 = await FileSystem.readAsStringAsync(resized.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const buffer = Buffer.from(base64, "base64");
+      const rawImageData = jpeg.decode(buffer, { useTArray: true });
 
-## Building with EAS
+      const rgbData = new Float32Array(224 * 224 * 3);
+      let rgbIndex = 0;
+      for (let i = 0; i < rawImageData.data.length; i += 4) {
+        rgbData[rgbIndex++] = rawImageData.data[i];
+        rgbData[rgbIndex++] = rawImageData.data[i + 1];
+        rgbData[rgbIndex++] = rawImageData.data[i + 2];
+      }
 
-Use EAS to build, sign, and submit the app in the cloud (`eas build`, `eas submit`) and to ship over-the-air updates (`eas update`) — no local Xcode or Android Studio required. Run EAS CLI as `bunx eas-cli <command>` in Bun projects, or `npx eas-cli@latest <command>` otherwise; substitute that for bare `eas` in docs examples.
-Docs: https://docs.expo.dev/eas/index.md
+      if (model) {
+        const output = await model.run([rgbData.buffer]);
+        if (!output || output.length === 0) return;
 
-## Rules
+        const resultTensor = output[0];
+        const floatOutput = new Float32Array(resultTensor.buffer || resultTensor);
 
-- If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
-- Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
-- Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+        let maxConfidence = 0;
+        let maxIndex = 0;
+        for (let i = 0; i < floatOutput.length; i++) {
+          if (floatOutput[i] > maxConfidence) {
+            maxConfidence = floatOutput[i];
+            maxIndex = i;
+          }
+        }
+
+        // AGENT NOTE: Adapt the class mapping below based on whether this is Stage 1 (Leaf Type) or Stage 2 (Disease)
+        const namaPenyakit = KELAS_CABAI[maxIndex] || `Kelas ${maxIndex}`;
+        const persentase = (maxConfidence * 100).toFixed(2);
+        setResult({
+          namaPenyakit,
+          persentase,
+          kelas: maxIndex,
+        });
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };

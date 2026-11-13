@@ -55,7 +55,7 @@ const App = () => {
 
         {/* BANNER INSTAN SCANNER */}
         <Pressable
-          onPress={() => setModalVisible(true)}
+          onPress={() => router.push("/pindai_cepat" as any)}
           className="mx-5 my-4 bg-[#265e39] rounded-2xl p-5 relative overflow-hidden shadow-sm"
         >
           {/* Decorative shapes behind */}

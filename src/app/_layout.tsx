@@ -17,6 +17,7 @@ export default function RootLayout() {
         <Stack.Screen name="index" />
         <Stack.Screen name="beranda" />
         <Stack.Screen name="panduan" />
+        <Stack.Screen name="pindai_cepat" />
         <Stack.Screen name="chili_disease" />
         <Stack.Screen name="detects/tomato_detect" />
         <Stack.Screen name="detects/chili_detect" />

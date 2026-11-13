@@ -41,3 +41,6 @@ example
 # generated native folders
 /ios
 /android
+# Abaikan file model ML
+*.tflite
+assets/model/
